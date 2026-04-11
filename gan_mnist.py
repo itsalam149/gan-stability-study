@@ -505,10 +505,19 @@ def load_config(args) -> dict:
         with open(args.config) as f:
             yaml_cfg = yaml.safe_load(f)
         cfg.update({k: v for k, v in yaml_cfg.items() if k in cfg})
-        if "model" in yaml_cfg and not args.model:
+        # ✅ FIX: Only let YAML set model/dataset if CLI didn't explicitly set them
+        if "model" in yaml_cfg and args.model is None:
             args.model = yaml_cfg["model"]
+        if "dataset" in yaml_cfg and args.dataset is None:
+            args.dataset = yaml_cfg["dataset"]
 
-    # 2. CLI overrides
+    # 2. Apply fallback defaults if still not set
+    if args.model is None:
+        args.model = "dcgan"
+    if args.dataset is None:
+        args.dataset = "mnist"
+
+    # 3. CLI overrides
     if args.epochs:
         cfg["epochs"] = args.epochs
     if args.batch_size:
@@ -519,16 +528,17 @@ def load_config(args) -> dict:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="CS318 GAN – Image Generation")
-    parser.add_argument("--model",      choices=["vanilla", "dcgan", "cdcgan"], default="dcgan",
-                        help="GAN architecture (default: dcgan)")
-    parser.add_argument("--dataset",    choices=["mnist", "fashion_mnist"], default="mnist",
-                        help="Dataset to train on (default: mnist)")
+    # ✅ FIX: default=None so YAML config can override if no CLI flag given
+    parser.add_argument("--model",      choices=["vanilla", "dcgan", "cdcgan"], default=None,
+                        help="GAN architecture (default: dcgan, or from config)")
+    parser.add_argument("--dataset",    choices=["mnist", "fashion_mnist"], default=None,
+                        help="Dataset to train on (default: mnist, or from config)")
     parser.add_argument("--epochs",     type=int, default=None,
                         help="Number of training epochs (overrides config)")
     parser.add_argument("--batch_size", type=int, default=None,
                         help="Batch size (overrides config)")
     parser.add_argument("--config",     type=str, default=None,
-                        help="Path to YAML config file (e.g. configs/dcgan.yaml)")
+                        help="Path to YAML config file (e.g. configs/vanilla.yaml)")
     args = parser.parse_args()
 
     cfg = load_config(args)

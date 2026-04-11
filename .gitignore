@@ -1,0 +1,70 @@
+# ─── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ─── Virtual Environments ──────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+ENV/
+.env/
+
+# ─── PyTorch Model Weights & Checkpoints ───────────────────────────────────────
+*.pth
+*.pt
+*.ckpt
+results/*/checkpoints/
+
+# ─── NumPy Arrays (large binary files) ────────────────────────────────────────
+*.npy
+*.npz
+
+# ─── MNIST Dataset (downloaded automatically at runtime) ──────────────────────
+data/
+
+# ─── Generated Output Images ──────────────────────────────────────────────────
+# Keep results structure but ignore large image grids and generated samples
+results/*/samples/
+results/*/generated/
+results/comparison.png
+
+# Keep loss curves and progression figures (small, useful for paper)
+# results/*/losses.png     ← tracked
+# results/*/progression.png ← tracked
+
+# ─── Jupyter Notebooks ─────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ─── OS Files ──────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+desktop.ini
+
+# ─── IDE / Editor ──────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ─── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ─── Misc ──────────────────────────────────────────────────────────────────────
+.cache/
+tmp/

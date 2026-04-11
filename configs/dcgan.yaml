@@ -1,0 +1,20 @@
+# ─── DCGAN Hyperparameters ─────────────────────────────────────────────────────
+model: dcgan
+
+# Architecture
+latent_dim: 100
+img_size: 28
+channels: 1
+
+# Training
+batch_size: 128
+epochs: 100
+lr: 0.0002
+beta1: 0.5
+beta2: 0.999
+label_smoothing: 0.9      # real labels → 0.9 for stability
+
+# Logging
+sample_interval: 10       # save image grid every N epochs
+checkpoint_interval: 25   # save .pth checkpoint every N epochs
+num_workers: 2

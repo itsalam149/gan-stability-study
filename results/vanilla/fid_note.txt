@@ -1,0 +1,11 @@
+To compute FID:
+  pip install pytorch-fid
+
+1. Generate fake images:
+   python generate_samples.py --model vanilla --n 10000
+
+2. Export real MNIST images:
+   python compute_fid.py --export_real
+
+3. Compute FID:
+   python compute_fid.py --model vanilla

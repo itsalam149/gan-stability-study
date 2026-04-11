@@ -1,0 +1,8 @@
+torch>=2.0
+torchvision>=0.15
+matplotlib
+numpy
+tqdm
+pyyaml
+pytorch-fid
+Pillow

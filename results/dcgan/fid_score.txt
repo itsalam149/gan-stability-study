@@ -1,4 +1,5 @@
-Model : DCGAN
-FID   : 12.8151
-Real  : data/real_mnist (10000 images)
-Fake  : results/dcgan/generated (10000 images)
+Model   : DCGAN
+Dataset : MNIST
+FID     : 17.4296
+Real    : data/real_mnist (10000 images)
+Fake    : results/dcgan/generated (10000 images)

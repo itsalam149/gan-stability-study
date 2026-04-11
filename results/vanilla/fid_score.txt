@@ -1,0 +1,5 @@
+Model   : VANILLA
+Dataset : MNIST
+FID     : 40.5869
+Real    : data/real_mnist (10000 images)
+Fake    : results/vanilla/generated (10000 images)

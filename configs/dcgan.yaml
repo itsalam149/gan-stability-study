@@ -17,4 +17,4 @@ label_smoothing: 0.9      # real labels → 0.9 for stability
 # Logging
 sample_interval: 10       # save image grid every N epochs
 checkpoint_interval: 25   # save .pth checkpoint every N epochs
-num_workers: 2
+num_workers: 0            # macOS MPS: 0 is faster (avoids forking overhead)

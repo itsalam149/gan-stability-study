@@ -7,9 +7,19 @@ Uses pytorch-fid (Python API) to compute Fréchet Inception Distance.
 
 Steps:
   1. Export real MNIST images → data/real_mnist/
-  2. Load generated images → results/<model>/samples/
+  2. Load generated images → results/<model>/generated/
   3. Compute FID directly (no subprocess parsing issues)
   4. Save score → results/<model>/fid_score.txt
+
+Usage:
+    # Export real MNIST images only (one-time setup):
+    python compute_fid.py --export_real
+
+    # Compute FID for dcgan (needs trained model + generated samples):
+    python compute_fid.py --model dcgan
+
+    # Compute FID for vanilla:
+    python compute_fid.py --model vanilla
 """
 
 import argparse
@@ -20,7 +30,7 @@ from torchvision import datasets, transforms
 from torchvision.utils import save_image
 from tqdm import tqdm
 
-# ✅ NEW: direct FID import
+# ✅ Direct FID import (Python API — no subprocess parsing issues)
 from pytorch_fid import fid_score
 
 
@@ -87,7 +97,7 @@ def compute_fid(model_type: str):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # ✅ BEST METHOD (no parsing issues)
+    # ✅ BEST METHOD — direct Python API (no subprocess parsing issues)
     fid_value = fid_score.calculate_fid_given_paths(
         [REAL_DIR, gen_dir],
         batch_size=50,
@@ -136,5 +146,5 @@ if __name__ == "__main__":
     if args.export_real:
         export_real_mnist(args.n_real)
     else:
-        export_real_mnist(args.n_real)  # safe to call again
+        export_real_mnist(args.n_real)  # safe to call again — skips if already done
         compute_fid(args.model)

@@ -225,30 +225,45 @@ After training completes, a `progression.png` is auto-saved showing epoch 1 → 
 
 ## 6. Generating Samples
 
-After training is complete, use this to generate a batch of fake images (needed for FID):
+After training is complete, run this script to generate **10,000 fake images** from your trained generator. These images are used as input for the FID score computation.
 
-### Generate 10,000 fake images from DCGAN:
+### Step-by-step
+
+**Step 1 — Generate from DCGAN:**
 ```bash
 python generate_samples.py --model dcgan --n 10000
 ```
 
-### Generate from Vanilla GAN:
+**Step 2 — Generate from Vanilla GAN:**
 ```bash
 python generate_samples.py --model vanilla --n 10000
 ```
 
+You should see output like:
+```
+[INFO] Generating 10000 images from DCGAN generator …
+100%|████████████████████| 10000/10000 [00:45<00:00, 220img/s]
+[DONE] 10000 images saved → results/dcgan/generated/
+```
+
 Images are saved to:
 ```
-results/dcgan/generated/00000.png
-results/dcgan/generated/00001.png
-...
+results/dcgan/generated/
+├── 00000.png
+├── 00001.png
+├── ...
+└── 09999.png
+
+results/vanilla/generated/
+├── 00000.png
+└── ...
 ```
 
 ### Available Flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--model` | `dcgan` | Which trained model to load |
+| `--model` | `dcgan` | Which trained model to load (`vanilla` or `dcgan`) |
 | `--n` | `10000` | Number of images to generate |
 
 > ⚠️ **Requires training to be complete first.** The script loads `results/<model>/generator.pth`.
@@ -257,25 +272,20 @@ results/dcgan/generated/00001.png
 
 ## 7. Evaluation – FID Score
 
-**Fréchet Inception Distance (FID)** measures how close the generated images are to real MNIST images. **Lower is better.**
+**Fréchet InceptionDistance (FID)** measures how close the generated images are to real MNIST images. **Lower is better.**
 
-### Step 1 — Export real MNIST images (one-time setup)
+> ✅ **`compute_fid.py` (FIXED VERSION)** — Uses the `pytorch-fid` Python API directly (no subprocess). Real MNIST images are **exported automatically** before computing FID — you do not need to run `--export_real` separately.
 
-```bash
-python compute_fid.py --export_real
-```
-
-This saves 10,000 real MNIST images to `data/real_mnist/`. You only need to run this once.
-
-### Step 2 — Generate fake images (if not done already)
+### Step 1 — Generate fake images (if not done already)
 
 ```bash
 python generate_samples.py --model dcgan --n 10000
+python generate_samples.py --model vanilla --n 10000
 ```
 
-### Step 3 — Compute FID score
+### Step 2 — Compute FID score
 
-**For DCGAN:**
+**For DCGAN** (auto-exports real images on first run):
 ```bash
 python compute_fid.py --model dcgan
 ```
@@ -285,17 +295,45 @@ python compute_fid.py --model dcgan
 python compute_fid.py --model vanilla
 ```
 
+Expected terminal output:
+```
+[INFO] Real MNIST already exists → data/real_mnist/
+[INFO] Computing FID for DCGAN...
+[RESULT] FID = 18.5423
+[DONE] FID saved → results/dcgan/fid_score.txt
+```
+
 The FID score is printed to the terminal and saved to:
 ```
 results/dcgan/fid_score.txt
 results/vanilla/fid_score.txt
 ```
 
-### One-liner (full FID pipeline for DCGAN):
+Contents of `fid_score.txt`:
+```
+Model : DCGAN
+FID   : 18.5423
+Real  : data/real_mnist (10000 images)
+Fake  : results/dcgan/generated (10000 images)
+```
+
+### (Optional) Export real images only — one-time manual setup:
+
 ```bash
-python compute_fid.py --export_real && \
-python generate_samples.py --model dcgan --n 10000 && \
+python compute_fid.py --export_real
+```
+
+This is **not required** — it happens automatically. Only run this explicitly if you want to pre-populate `data/real_mnist/` before training.
+
+### One-liner (full FID pipeline for both models):
+```bash
+# Generate samples
+python generate_samples.py --model dcgan --n 10000
+python generate_samples.py --model vanilla --n 10000
+
+# Compute FID (real images exported automatically on first call)
 python compute_fid.py --model dcgan
+python compute_fid.py --model vanilla
 ```
 
 ### Interpreting FID Scores
@@ -364,10 +402,10 @@ source venv/bin/activate
 # 2. Train DCGAN for 100 epochs
 python gan_mnist.py --config configs/dcgan.yaml
 
-# 3. Generate 10k fake images
+# 3. Generate 10,000 fake images
 python generate_samples.py --model dcgan --n 10000
 
-# 4. Compute FID score
+# 4. Compute FID score (auto-exports real images on first run)
 python compute_fid.py --model dcgan
 
 # 5. Create detailed visualizations
@@ -381,22 +419,20 @@ python visualize.py --model dcgan
 ```bash
 source venv/bin/activate
 
-# Train both
+# 1. Train both models
 python gan_mnist.py --config configs/dcgan.yaml
 python gan_mnist.py --config configs/vanilla.yaml
 
-# Export real images (once)
-python compute_fid.py --export_real
-
-# Generate samples from both
+# 2. Generate 10,000 fake images from each model
 python generate_samples.py --model dcgan --n 10000
 python generate_samples.py --model vanilla --n 10000
 
-# Compute FID for both
+# 3. Compute FID for both
+#    (real MNIST images are exported automatically on first call)
 python compute_fid.py --model dcgan
 python compute_fid.py --model vanilla
 
-# Visualize both + comparison
+# 4. Visualize both + generate comparison figure
 python visualize.py --model dcgan
 python visualize.py --model vanilla
 python visualize.py --compare

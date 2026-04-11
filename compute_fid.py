@@ -34,33 +34,35 @@ from tqdm import tqdm
 from pytorch_fid import fid_score
 
 
-REAL_DIR = "data/real_mnist"
 N_REAL   = 10000
 
 
 # ---------------------------------------------------------
-# Export real MNIST images
+# Export real images
 # ---------------------------------------------------------
-def export_real_mnist(n: int = N_REAL):
-    if os.path.exists(REAL_DIR) and len(os.listdir(REAL_DIR)) >= n:
-        print(f"[INFO] Real MNIST already exists → {REAL_DIR}/")
-        return
+def export_real_images(n: int = N_REAL, dataset_name: str = "mnist"):
+    real_dir = f"data/real_{dataset_name}"
+    if os.path.exists(real_dir) and len(os.listdir(real_dir)) >= n:
+        print(f"[INFO] Real {dataset_name} already exists → {real_dir}/")
+        return real_dir
 
-    os.makedirs(REAL_DIR, exist_ok=True)
+    os.makedirs(real_dir, exist_ok=True)
 
     transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize([0.5], [0.5]),
     ])
 
-    dataset = datasets.MNIST(
-        root="./data",
-        train=True,
-        download=True,
-        transform=transform
-    )
+    if dataset_name == "fashion_mnist":
+        dataset = datasets.FashionMNIST(
+            root="./data", train=True, download=True, transform=transform
+        )
+    else:
+        dataset = datasets.MNIST(
+            root="./data", train=True, download=True, transform=transform
+        )
 
-    print(f"[INFO] Exporting {n} real MNIST images → {REAL_DIR}/")
+    print(f"[INFO] Exporting {n} real {dataset_name} images → {real_dir}/")
 
     pbar = tqdm(total=n, unit="img", ncols=80)
 
@@ -68,29 +70,31 @@ def export_real_mnist(n: int = N_REAL):
         if i >= n:
             break
 
-        save_image(img, f"{REAL_DIR}/{i:05d}.png", normalize=True)
+        save_image(img, f"{real_dir}/{i:05d}.png", normalize=True)
         pbar.update(1)
 
     pbar.close()
     print(f"[DONE] Saved {n} real images.")
+    return real_dir
 
 
 # ---------------------------------------------------------
 # Compute FID
 # ---------------------------------------------------------
-def compute_fid(model_type: str):
+def compute_fid(model_type: str, dataset_name: str = "mnist"):
     # ✅ FIXED PATH (IMPORTANT)
-    gen_dir = f"results/{model_type}/generated"
-    out_txt = f"results/{model_type}/fid_score.txt"
+    gen_dir = f"results/{model_type}_{dataset_name}/generated" if dataset_name == "fashion_mnist" else f"results/{model_type}/generated"
+    out_txt = f"results/{model_type}_{dataset_name}/fid_score.txt" if dataset_name == "fashion_mnist" else f"results/{model_type}/fid_score.txt"
+    real_dir = f"data/real_{dataset_name}"
 
     if not os.path.exists(gen_dir) or len(os.listdir(gen_dir)) == 0:
         print(f"[ERROR] No generated images found at '{gen_dir}'")
-        print(f"Run first: python generate_samples.py --model {model_type}")
+        print(f"Run first: python generate_samples.py --model {model_type} --dataset {dataset_name}")
         sys.exit(1)
 
-    if not os.path.exists(REAL_DIR) or len(os.listdir(REAL_DIR)) == 0:
-        print("[ERROR] Real MNIST images not found")
-        print("Run: python compute_fid.py --export_real")
+    if not os.path.exists(real_dir) or len(os.listdir(real_dir)) == 0:
+        print(f"[ERROR] Real {dataset_name} images not found")
+        print(f"Run: python compute_fid.py --export_real --dataset {dataset_name}")
         sys.exit(1)
 
     print(f"[INFO] Computing FID for {model_type.upper()}...")
@@ -99,7 +103,7 @@ def compute_fid(model_type: str):
 
     # ✅ BEST METHOD — direct Python API (no subprocess parsing issues)
     fid_value = fid_score.calculate_fid_given_paths(
-        [REAL_DIR, gen_dir],
+        [real_dir, gen_dir],
         batch_size=50,
         device=device,
         dims=2048
@@ -109,10 +113,11 @@ def compute_fid(model_type: str):
 
     # Save result
     with open(out_txt, "w") as f:
-        f.write(f"Model : {model_type.upper()}\n")
-        f.write(f"FID   : {fid_value:.4f}\n")
-        f.write(f"Real  : {REAL_DIR} ({len(os.listdir(REAL_DIR))} images)\n")
-        f.write(f"Fake  : {gen_dir} ({len(os.listdir(gen_dir))} images)\n")
+        f.write(f"Model   : {model_type.upper()}\n")
+        f.write(f"Dataset : {dataset_name.upper()}\n")
+        f.write(f"FID     : {fid_value:.4f}\n")
+        f.write(f"Real    : {real_dir} ({len(os.listdir(real_dir))} images)\n")
+        f.write(f"Fake    : {gen_dir} ({len(os.listdir(gen_dir))} images)\n")
 
     print(f"[DONE] FID saved → {out_txt}")
 
@@ -125,14 +130,20 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--model",
-        choices=["vanilla", "dcgan"],
+        choices=["vanilla", "dcgan", "cdcgan"],
         default="dcgan"
+    )
+
+    parser.add_argument(
+        "--dataset",
+        choices=["mnist", "fashion_mnist"],
+        default="mnist"
     )
 
     parser.add_argument(
         "--export_real",
         action="store_true",
-        help="Export real MNIST images only"
+        help="Export real images only"
     )
 
     parser.add_argument(
@@ -144,7 +155,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.export_real:
-        export_real_mnist(args.n_real)
+        export_real_images(args.n_real, args.dataset)
     else:
-        export_real_mnist(args.n_real)  # safe to call again — skips if already done
-        compute_fid(args.model)
+        export_real_images(args.n_real, args.dataset)  # safe to call again — skips if already done
+        compute_fid(args.model, args.dataset)

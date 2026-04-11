@@ -53,6 +53,7 @@ DEFAULT_CFG = dict(
     sample_interval=10,
     checkpoint_interval=25,
     num_workers=2,
+    num_classes=10,
 )
 
 if torch.cuda.is_available():
@@ -169,6 +170,66 @@ class DCDiscriminator(nn.Module):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+#  cDCGAN  (Conditional Convolutional)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class cDCGenerator(nn.Module):
+    """
+    Conditional Convolutional Generator.
+    Fuses random noise z and label embedding.
+    """
+    def __init__(self, cfg):
+        super().__init__()
+        self.label_emb = nn.Embedding(cfg["num_classes"], cfg["num_classes"])
+        # Input to first linear layer is z + label embedding
+        self.fc = nn.Linear(cfg["latent_dim"] + cfg["num_classes"], 128 * 7 * 7)
+        self.net = nn.Sequential(
+            nn.BatchNorm2d(128),
+            nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.ConvTranspose2d(64, cfg["channels"], kernel_size=4, stride=2, padding=1),
+            nn.Tanh(),
+        )
+
+    def forward(self, z, labels):
+        c = self.label_emb(labels)
+        x = torch.cat([z, c], dim=1)
+        x = self.fc(x).view(-1, 128, 7, 7)
+        return self.net(x)
+
+
+class cDCDiscriminator(nn.Module):
+    """
+    Conditional Convolutional Discriminator.
+    Embeds label into a 1x28x28 feature map and concatenates with image.
+    """
+    def __init__(self, cfg):
+        super().__init__()
+        self.img_size = cfg["img_size"]
+        self.label_emb = nn.Embedding(cfg["num_classes"], 1 * self.img_size * self.img_size)
+        
+        # Takes in image (1 channel) + label feature map (1 channel) = 2 channels
+        self.net = nn.Sequential(
+            nn.Conv2d(cfg["channels"] + 1, 64, kernel_size=4, stride=2, padding=1),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.2, inplace=True),
+        )
+        self.fc = nn.Sequential(
+            nn.Linear(128 * 7 * 7, 1),
+            nn.Sigmoid(),
+        )
+
+    def forward(self, img, labels):
+        c = self.label_emb(labels).view(-1, 1, self.img_size, self.img_size)
+        x = torch.cat([img, c], dim=1)
+        features = self.net(x).view(x.size(0), -1)
+        return self.fc(features)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 #  UTILITIES
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -182,14 +243,21 @@ def weights_init(m):
         nn.init.constant_(m.bias.data, 0)
 
 
-def get_dataloader(cfg):
+def get_dataloader(cfg, dataset_name="mnist"):
     transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize([0.5], [0.5]),   # → [-1, 1]
     ])
-    dataset = datasets.MNIST(
-        root="./data", train=True, download=True, transform=transform
-    )
+    
+    if dataset_name == "fashion_mnist":
+        dataset = datasets.FashionMNIST(
+            root="./data", train=True, download=True, transform=transform
+        )
+    else:
+        dataset = datasets.MNIST(
+            root="./data", train=True, download=True, transform=transform
+        )
+        
     return DataLoader(
         dataset,
         batch_size=cfg["batch_size"],
@@ -258,8 +326,8 @@ def save_progression(sample_dir, out_path, milestones):
 #  TRAINING LOOP
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def train(model_type: str, cfg: dict):
-    out_dir    = f"results/{model_type}"
+def train(model_type: str, dataset_name: str, cfg: dict):
+    out_dir    = f"results/{model_type}_{dataset_name}" if dataset_name == "fashion_mnist" else f"results/{model_type}"
     sample_dir = f"{out_dir}/samples"
     ckpt_dir   = f"{out_dir}/checkpoints"
     os.makedirs(sample_dir, exist_ok=True)
@@ -271,6 +339,11 @@ def train(model_type: str, cfg: dict):
     if model_type == "vanilla":
         G = VanillaGenerator(cfg).to(device)
         D = VanillaDiscriminator(cfg).to(device)
+    elif model_type == "cdcgan":
+        G = cDCGenerator(cfg).to(device)
+        D = cDCDiscriminator(cfg).to(device)
+        G.apply(weights_init)
+        D.apply(weights_init)
     else:
         G = DCGenerator(cfg).to(device)
         D = DCDiscriminator(cfg).to(device)
@@ -283,15 +356,19 @@ def train(model_type: str, cfg: dict):
     opt_D = optim.Adam(D.parameters(), lr=cfg["lr"],
                        betas=(cfg["beta1"], cfg["beta2"]))
 
-    dataloader = get_dataloader(cfg)
-    fixed_z    = torch.randn(64, cfg["latent_dim"], device=device)
+    dataloader = get_dataloader(cfg, dataset_name)
+    
+    # Fixed noise & labels for progression visualization
+    fixed_z = torch.randn(64, cfg["latent_dim"], device=device)
+    # E.g. [0,1,2,3,4,5,6,7,8,9, 0,1...]
+    fixed_labels = torch.arange(0, 10, device=device).repeat(7)[:64]
 
     g_losses, d_losses = [], []
 
     smooth = cfg["label_smoothing"]   # 0.9 → real labels
 
     print(f"\n{'═'*60}")
-    print(f"  Training {model_type.upper()} GAN  |  {epochs} epochs  |  {device}")
+    print(f"  Training {model_type.upper()} on {dataset_name.upper()}  |  {epochs} epochs  |  {device}")
     print(f"{'═'*60}\n")
 
     for epoch in range(1, epochs + 1):
@@ -301,8 +378,9 @@ def train(model_type: str, cfg: dict):
         pbar = tqdm(dataloader, desc=f"Epoch {epoch:>4}/{epochs}",
                     leave=False, ncols=90)
 
-        for real_imgs, _ in pbar:
+        for real_imgs, real_class_labels in pbar:
             real_imgs = real_imgs.to(device)
+            real_class_labels = real_class_labels.to(device)
             B = real_imgs.size(0)
 
             # Label smoothing: real → smooth, fake → 0
@@ -312,10 +390,17 @@ def train(model_type: str, cfg: dict):
             # ── Train Discriminator ──────────────────────────────────────────
             opt_D.zero_grad()
             z        = torch.randn(B, cfg["latent_dim"], device=device)
-            fake_imgs = G(z).detach()
-
-            loss_real = adversarial_loss(D(real_imgs), real_labels)
-            loss_fake = adversarial_loss(D(fake_imgs), fake_labels)
+            fake_class_labels = torch.randint(0, cfg["num_classes"], (B,), device=device)
+            
+            if model_type == "cdcgan":
+                fake_imgs = G(z, fake_class_labels).detach()
+                loss_real = adversarial_loss(D(real_imgs, real_class_labels), real_labels)
+                loss_fake = adversarial_loss(D(fake_imgs, fake_class_labels), fake_labels)
+            else:
+                fake_imgs = G(z).detach()
+                loss_real = adversarial_loss(D(real_imgs), real_labels)
+                loss_fake = adversarial_loss(D(fake_imgs), fake_labels)
+                
             loss_D    = (loss_real + loss_fake) / 2
             loss_D.backward()
             opt_D.step()
@@ -323,10 +408,15 @@ def train(model_type: str, cfg: dict):
             # ── Train Generator ──────────────────────────────────────────────
             opt_G.zero_grad()
             z       = torch.randn(B, cfg["latent_dim"], device=device)
-            gen_imgs = G(z)
-            # Fool discriminator: generated images should look real (label=1)
-            loss_G  = adversarial_loss(D(gen_imgs),
-                                       torch.ones(B, 1, device=device))
+            fake_class_labels = torch.randint(0, cfg["num_classes"], (B,), device=device)
+            
+            if model_type == "cdcgan":
+                gen_imgs = G(z, fake_class_labels)
+                loss_G  = adversarial_loss(D(gen_imgs, fake_class_labels), torch.ones(B, 1, device=device))
+            else:
+                gen_imgs = G(z)
+                loss_G  = adversarial_loss(D(gen_imgs), torch.ones(B, 1, device=device))
+                
             loss_G.backward()
             opt_G.step()
 
@@ -347,7 +437,10 @@ def train(model_type: str, cfg: dict):
         # ── Save sample grid ─────────────────────────────────────────────────
         if epoch % cfg["sample_interval"] == 0 or epoch == 1:
             with torch.no_grad():
-                samples = G(fixed_z)
+                if model_type == "cdcgan":
+                    samples = G(fixed_z, fixed_labels)
+                else:
+                    samples = G(fixed_z)
             path = f"{sample_dir}/epoch_{epoch:04d}.png"
             save_image(samples, path, nrow=8, normalize=True)
             print(f"  → Sample grid saved → {path}")
@@ -425,9 +518,11 @@ def load_config(args) -> dict:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="CS318 GAN – MNIST")
-    parser.add_argument("--model",      choices=["vanilla", "dcgan"], default="dcgan",
+    parser = argparse.ArgumentParser(description="CS318 GAN – Image Generation")
+    parser.add_argument("--model",      choices=["vanilla", "dcgan", "cdcgan"], default="dcgan",
                         help="GAN architecture (default: dcgan)")
+    parser.add_argument("--dataset",    choices=["mnist", "fashion_mnist"], default="mnist",
+                        help="Dataset to train on (default: mnist)")
     parser.add_argument("--epochs",     type=int, default=None,
                         help="Number of training epochs (overrides config)")
     parser.add_argument("--batch_size", type=int, default=None,
@@ -437,7 +532,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     cfg = load_config(args)
-    print(f"[CFG] model={args.model}  epochs={cfg['epochs']}  "
+    print(f"[CFG] model={args.model}  dataset={args.dataset}  epochs={cfg['epochs']}  "
           f"batch={cfg['batch_size']}  lr={cfg['lr']}")
 
-    train(args.model, cfg)
+    train(args.model, args.dataset, cfg)

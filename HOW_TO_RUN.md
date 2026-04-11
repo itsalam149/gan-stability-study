@@ -17,8 +17,9 @@
 6. [Generating Samples](#6-generating-samples)
 7. [Evaluation – FID Score](#7-evaluation--fid-score)
 8. [Visualization](#8-visualization)
-9. [Quick-Run Reference](#9-quick-run-reference)
-10. [Troubleshooting](#10-troubleshooting)
+9. [Advanced: Conditional GAN & Fashion-MNIST](#9-advanced-conditional-gan--fashion-mnist)
+10. [Quick-Run Reference](#10-quick-run-reference)
+11. [Troubleshooting](#11-troubleshooting)
 
 ---
 
@@ -161,7 +162,8 @@ python gan_mnist.py --model vanilla --epochs 100
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--model` | `vanilla` / `dcgan` | `dcgan` | Architecture to train |
+| `--model` | `vanilla`, `dcgan`, `cdcgan` | `dcgan` | Architecture to train |
+| `--dataset` | `mnist`, `fashion_mnist` | `mnist` | Dataset to train on |
 | `--epochs` | int | `100` | Number of training epochs |
 | `--batch_size` | int | `128` | Batch size |
 | `--config` | path | None | Path to YAML config file |
@@ -391,7 +393,30 @@ Output:
 
 ---
 
-## 9. Quick-Run Reference
+## 9. Advanced: Conditional GAN & Fashion-MNIST
+
+To push beyond a standard implementation, we added support for **Conditional DCGANs (cDCGAN)** and the **Fashion-MNIST** dataset.
+
+### Train a Conditional GAN on Fashion-MNIST:
+```bash
+python gan_mnist.py --model cdcgan --dataset fashion_mnist --config configs/cdcgan.yaml
+```
+
+### Generate specific classes on demand:
+Because it's a Conditional GAN, you can force it to generate a specific class (e.g., class 7: Sneaker):
+```bash
+python generate_samples.py --model cdcgan --dataset fashion_mnist --class_label 7
+```
+
+### Evaluate and Visualize:
+```bash
+python compute_fid.py --model cdcgan --dataset fashion_mnist
+python visualize.py --model cdcgan --dataset fashion_mnist
+```
+
+---
+
+## 10. Quick-Run Reference
 
 ### Full pipeline — DCGAN from scratch:
 
@@ -426,15 +451,18 @@ python gan_mnist.py --config configs/vanilla.yaml
 # 2. Generate 10,000 fake images from each model
 python generate_samples.py --model dcgan --n 10000
 python generate_samples.py --model vanilla --n 10000
+python generate_samples.py --model cdcgan --n 10000
 
-# 3. Compute FID for both
+# 3. Compute FID for all
 #    (real MNIST images are exported automatically on first call)
 python compute_fid.py --model dcgan
 python compute_fid.py --model vanilla
+python compute_fid.py --model cdcgan
 
-# 4. Visualize both + generate comparison figure
+# 4. Visualize all + generate comparison figure
 python visualize.py --model dcgan
 python visualize.py --model vanilla
+python visualize.py --model cdcgan
 python visualize.py --compare
 ```
 
@@ -444,12 +472,12 @@ python visualize.py --compare
 
 ```bash
 source venv/bin/activate
-python gan_mnist.py --model dcgan --epochs 5
+python gan_mnist.py --model dcgan --epochs 5 --dataset mnist
 ```
 
 ---
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 ### ❌ `ModuleNotFoundError: No module named 'torch'`
 > You forgot to activate the virtual environment.

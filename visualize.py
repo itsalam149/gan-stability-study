@@ -31,25 +31,27 @@ def smooth(values, window=5):
     return np.convolve(padded, kernel, mode="valid")[:len(values)]
 
 
-def load_losses(model_type: str):
+def load_losses(model_type: str, dataset_name: str = "mnist"):
     """Re-read loss values from the losses.png is not possible;
     instead, we store them as a simple .npy during training.
     Falls back to plotting from existing losses.png if .npy absent."""
-    npy_g = f"results/{model_type}/g_losses.npy"
-    npy_d = f"results/{model_type}/d_losses.npy"
+    base_dir = f"results/{model_type}_{dataset_name}" if dataset_name == "fashion_mnist" else f"results/{model_type}"
+    npy_g = f"{base_dir}/g_losses.npy"
+    npy_d = f"{base_dir}/d_losses.npy"
     if os.path.exists(npy_g) and os.path.exists(npy_d):
         return np.load(npy_g), np.load(npy_d)
     return None, None
 
 
-def plot_loss_curve(model_type: str):
-    g, d = load_losses(model_type)
+def plot_loss_curve(model_type: str, dataset_name: str = "mnist"):
+    g, d = load_losses(model_type, dataset_name)
     if g is None:
-        print(f"[WARN] No .npy loss arrays found for {model_type}. "
+        print(f"[WARN] No .npy loss arrays found for {model_type} ({dataset_name}). "
               f"Losses are already saved as losses.png during training.")
         return
 
-    out = f"results/{model_type}/losses_detailed.png"
+    base_dir = f"results/{model_type}_{dataset_name}" if dataset_name == "fashion_mnist" else f"results/{model_type}"
+    out = f"{base_dir}/losses_detailed.png"
     epochs = np.arange(1, len(g) + 1)
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 4))
@@ -85,9 +87,10 @@ def plot_loss_curve(model_type: str):
     print(f"[DONE] Detailed loss curve → {out}")
 
 
-def plot_progression(model_type: str, milestones=(1, 10, 50, 100)):
-    sample_dir = f"results/{model_type}/samples"
-    out_path   = f"results/{model_type}/progression.png"
+def plot_progression(model_type: str, dataset_name: str = "mnist", milestones=(1, 10, 50, 100)):
+    base_dir = f"results/{model_type}_{dataset_name}" if dataset_name == "fashion_mnist" else f"results/{model_type}"
+    sample_dir = f"{base_dir}/samples"
+    out_path   = f"{base_dir}/progression.png"
 
     found = []
     for ep in milestones:
@@ -110,7 +113,7 @@ def plot_progression(model_type: str, milestones=(1, 10, 50, 100)):
         ax.set_title(f"Epoch {ep}", fontsize=13, fontweight="bold", pad=8)
         ax.axis("off")
 
-    fig.suptitle(f"{model_type.upper()} GAN – Training Progression (MNIST)",
+    fig.suptitle(f"{model_type.upper()} GAN – Training Progression ({dataset_name.upper()})",
                  fontsize=14, fontweight="bold")
     fig.tight_layout()
     fig.savefig(out_path, dpi=150, bbox_inches="tight")
@@ -118,19 +121,24 @@ def plot_progression(model_type: str, milestones=(1, 10, 50, 100)):
     print(f"[DONE] Progression figure → {out_path}")
 
 
-def plot_comparison():
+def plot_comparison(dataset_name: str = "mnist"):
     """Side-by-side final samples: Vanilla vs DCGAN."""
-    v_samples = [f for f in sorted(os.listdir("results/vanilla/samples"))
-                 if f.endswith(".png")]
-    d_samples = [f for f in sorted(os.listdir("results/dcgan/samples"))
-                 if f.endswith(".png")]
+    v_dir = f"results/vanilla_{dataset_name}/samples" if dataset_name == "fashion_mnist" else "results/vanilla/samples"
+    d_dir = f"results/dcgan_{dataset_name}/samples" if dataset_name == "fashion_mnist" else "results/dcgan/samples"
+    
+    if not os.path.exists(v_dir) or not os.path.exists(d_dir):
+        print("[WARN] Need both vanilla and dcgan trained models to compare.")
+        return
+        
+    v_samples = [f for f in sorted(os.listdir(v_dir)) if f.endswith(".png")]
+    d_samples = [f for f in sorted(os.listdir(d_dir)) if f.endswith(".png")]
 
     if not v_samples or not d_samples:
         print("[WARN] Need both vanilla and dcgan sample directories populated.")
         return
 
-    v_img = np.array(Image.open(f"results/vanilla/samples/{v_samples[-1]}").convert("RGB"))
-    d_img = np.array(Image.open(f"results/dcgan/samples/{d_samples[-1]}").convert("RGB"))
+    v_img = np.array(Image.open(f"{v_dir}/{v_samples[-1]}").convert("RGB"))
+    d_img = np.array(Image.open(f"{d_dir}/{d_samples[-1]}").convert("RGB"))
 
     fig, axes = plt.subplots(1, 2, figsize=(10, 5))
     axes[0].imshow(v_img)
@@ -141,10 +149,10 @@ def plot_comparison():
     axes[1].set_title("DCGAN", fontsize=14, fontweight="bold")
     axes[1].axis("off")
 
-    fig.suptitle("Vanilla GAN vs DCGAN – Final Generated Samples",
+    fig.suptitle(f"Vanilla GAN vs DCGAN – Final Generated Samples ({dataset_name.upper()})",
                  fontsize=15, fontweight="bold")
     fig.tight_layout()
-    out = "results/comparison.png"
+    out = f"results/comparison_{dataset_name}.png" if dataset_name == "fashion_mnist" else "results/comparison.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"[DONE] Comparison figure → {out}")
@@ -154,7 +162,8 @@ def plot_comparison():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Visualisation tool for GAN results")
-    parser.add_argument("--model",   choices=["vanilla", "dcgan"], default="dcgan")
+    parser.add_argument("--model",   choices=["vanilla", "dcgan", "cdcgan"], default="dcgan")
+    parser.add_argument("--dataset", choices=["mnist", "fashion_mnist"], default="mnist")
     parser.add_argument("--compare", action="store_true",
                         help="Generate side-by-side Vanilla vs DCGAN comparison")
     parser.add_argument("--milestones", nargs="+", type=int, default=[1, 10, 50, 100],
@@ -162,7 +171,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.compare:
-        plot_comparison()
+        plot_comparison(args.dataset)
     else:
-        plot_loss_curve(args.model)
-        plot_progression(args.model, milestones=args.milestones)
+        plot_loss_curve(args.model, args.dataset)
+        plot_progression(args.model, args.dataset, milestones=args.milestones)

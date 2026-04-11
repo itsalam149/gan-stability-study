@@ -18,27 +18,33 @@ from tqdm import tqdm
 
 # ── Import model classes from the training script ──────────────────────────────
 from gan_mnist import (
-    VanillaGenerator, DCGenerator, DEFAULT_CFG, device
+    VanillaGenerator, DCGenerator, cDCGenerator, DEFAULT_CFG, device
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
 
-def generate_samples(model_type: str, n: int = 10000, cfg: dict = None):
+def generate_samples(model_type: str, dataset_name: str = "mnist", n: int = 10000, class_label: int = None, cfg: dict = None):
     if cfg is None:
         cfg = DEFAULT_CFG.copy()
 
-    out_dir = f"results/{model_type}/generated"
+    out_dir = f"results/{model_type}_{dataset_name}/generated" if dataset_name == "fashion_mnist" else f"results/{model_type}/generated"
     os.makedirs(out_dir, exist_ok=True)
 
     # ── Load generator ────────────────────────────────────────────────────────
-    ckpt_path = f"results/{model_type}/generator.pth"
+    ckpt_path = f"results/{model_type}_{dataset_name}/generator.pth" if dataset_name == "fashion_mnist" else f"results/{model_type}/generator.pth"
     if not os.path.exists(ckpt_path):
         raise FileNotFoundError(
             f"No saved generator found at '{ckpt_path}'.\n"
-            f"Run training first:  python gan_mnist.py --model {model_type}"
+            f"Run training first:  python gan_mnist.py --model {model_type} --dataset {dataset_name}"
         )
 
-    G = (VanillaGenerator(cfg) if model_type == "vanilla" else DCGenerator(cfg)).to(device)
+    if model_type == "vanilla":
+        G = VanillaGenerator(cfg).to(device)
+    elif model_type == "cdcgan":
+        G = cDCGenerator(cfg).to(device)
+    else:
+        G = DCGenerator(cfg).to(device)
+        
     G.load_state_dict(torch.load(ckpt_path, map_location=device))
     G.eval()
 
@@ -50,8 +56,17 @@ def generate_samples(model_type: str, n: int = 10000, cfg: dict = None):
         pbar = tqdm(total=n, unit="img", ncols=80)
         while saved < n:
             this_batch = min(batch_size, n - saved)
-            z    = torch.randn(this_batch, cfg["latent_dim"], device=device)
-            imgs = G(z)
+            z = torch.randn(this_batch, cfg["latent_dim"], device=device)
+            
+            if model_type == "cdcgan":
+                if class_label is not None:
+                    labels = torch.full((this_batch,), class_label, dtype=torch.long, device=device)
+                else:
+                    labels = torch.randint(0, cfg["num_classes"], (this_batch,), device=device)
+                imgs = G(z, labels)
+            else:
+                imgs = G(z)
+                
             for img in imgs:
                 save_image(img, f"{out_dir}/{saved:05d}.png", normalize=True)
                 saved += 1
@@ -62,9 +77,12 @@ def generate_samples(model_type: str, n: int = 10000, cfg: dict = None):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Generate fake MNIST images for FID")
-    parser.add_argument("--model", choices=["vanilla", "dcgan"], default="dcgan")
+    parser = argparse.ArgumentParser(description="Generate fake images for FID")
+    parser.add_argument("--model", choices=["vanilla", "dcgan", "cdcgan"], default="dcgan")
+    parser.add_argument("--dataset", choices=["mnist", "fashion_mnist"], default="mnist")
     parser.add_argument("--n",     type=int, default=10000,
                         help="Number of images to generate (default: 10000)")
+    parser.add_argument("--class_label", type=int, default=None,
+                        help="Generate only this specific class (0-9) if using cDCGAN")
     args = parser.parse_args()
-    generate_samples(args.model, args.n)
+    generate_samples(args.model, args.dataset, args.n, args.class_label)

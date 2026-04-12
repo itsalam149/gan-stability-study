@@ -1,0 +1,5 @@
+Model   : CDCGAN
+Dataset : FASHION_MNIST
+FID     : 144.2368
+Real    : data/real_fashion_mnist (10000 images)
+Fake    : results/cdcgan_fashion_mnist/generated (10000 images)

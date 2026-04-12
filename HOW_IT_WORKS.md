@@ -5,22 +5,24 @@
 
 ---
 
-## 1. The 10,000-Foot View — What the Whole Project Does
+## 1. Full Pipeline Flowchart
 
 ```mermaid
 flowchart TD
-    A([▶ START]) --> B[Load MNIST dataset\n60,000 handwritten digit images]
+    A([▶ START]) --> B[Load Dataset\nMNIST or Fashion-MNIST]
     B --> C{Which model?}
 
-    C -->|--model vanilla| D[Build Vanilla GAN\nfully-connected MLP]
-    C -->|--model dcgan| E[Build DCGAN\nconvolutional network]
+    C -->|--model vanilla| D[Vanilla GAN\nfully-connected MLP]
+    C -->|--model dcgan| E[DCGAN\nconvolutional network]
+    C -->|--model cdcgan| E2[cDCGAN\nconditional labels injected]
 
     D --> F[Train for N epochs]
     E --> F
+    E2 --> F
 
     F --> G[Save sample image grids\nevery 10 epochs]
     F --> H[Save model checkpoint\nevery 25 epochs]
-    F --> I[Plot G vs D loss curve]
+    F --> I[Plot G vs D loss curves]
 
     G --> J[Training done ✅]
     H --> J
@@ -36,91 +38,35 @@ flowchart TD
 
 ---
 
-## 2. What is a GAN? — The Core Idea
+## 2. Detailed Breakdown of Every Step
 
-```mermaid
-flowchart LR
-    subgraph Noise ["🎲 Random Noise"]
-        Z["z ~ N(0,1)\n100 random numbers"]
-    end
+### PHASE 1 — SETUP
+1. **START**: The program is initialized via the command line (e.g. `python gan_mnist.py --model dcgan --dataset fashion_mnist`).
+2. **Load Dataset**: The requested dataset (MNIST digits or Fashion-MNIST clothing) is downloaded into the `data/` folder and wrapped in a PyTorch `DataLoader`.
+3. **Which model?**: The pipeline checks your arguments and instantiates the proper PyTorch classes. 
+    *   **Vanilla GAN**: A simple multi-layer perceptron. Best for basic testing.
+    *   **DCGAN**: Uses Transposed Convolutions and strided Convolutions for much sharper image generation.
+    *   **cDCGAN**: Advanced model that also inputs a "class label" to allow you to command exactly what class is generated.
 
-    subgraph Generator ["🎨 Generator G"]
-        G["Transforms noise\ninto a fake image"]
-    end
+### PHASE 2 — TRAINING LOOP
+1. **Load batch of 128 real images**: Extract a small slice of data. We normalize the pixels to a range of `[-1, 1]` because neural networks learn much faster when data is mathematically centered.
+2. **Sample random noise z**: We generate an array of 100 completely random numbers for every image in the batch. This is the "seed" of the generator.
+3. **Generate Fake Images**: We pass that random noise strictly through the Generator to produce 128 fake images.
+4. **Train Discriminator**: 
+    *   We feed the Discriminator both the batch of real images and the batch of fake images.
+    *   We calculate how badly it guesses using Binary Cross-Entropy Loss (BCE).
+    *   We use Backpropagation to update only the Discriminator's weights.
+5. **Train Generator**:
+    *   We calculate how many times the Discriminator successfully caught the fakes.
+    *   If it was caught, the Generator gets penalized.
+    *   We use Backpropagation to update only the Generator's weights.
+6. **Next Batch / Epoch End**: We keep looping over batches until all 60,000 images have been processed (this completes one Epoch). 
 
-    subgraph RealData ["📷 Real Data"]
-        R["Real MNIST image\n(from dataset)"]
-    end
-
-    subgraph Discriminator ["🔍 Discriminator D"]
-        D["Tries to tell\nReal vs Fake"]
-    end
-
-    subgraph Output ["⚖️ Verdict"]
-        V["Probability:\n0 = Fake\n1 = Real"]
-    end
-
-    Z --> G
-    G -->|fake image| D
-    R -->|real image| D
-    D --> V
-
-    V -->|"loss signal\n(fooled? yes/no)"| G
-    V -->|"loss signal\n(correct? yes/no)"| D
-```
-
-> **The Game:** G tries to fool D. D tries not to be fooled.
-> They train together — each one getting better because of the other.
-
----
-
-## 3. The Training Loop — Step by Step
-
-```mermaid
-flowchart TD
-    START(["Epoch 1 … N"]) --> LOAD
-
-    LOAD["Load a batch of 128 real images\nfrom MNIST"] --> NOISE1
-
-    NOISE1["Sample random noise z\nz = torch.randn(128, 100)"] --> GENFAKE
-
-    GENFAKE["Generator G(z)\nProduces 128 fake images\n⚠️ .detach() — stops gradient\nflowing back to G here"] --> DTRAIN
-
-    subgraph DTRAIN ["🔵 Step 1 — Train Discriminator D"]
-        D1["D(real_images) → should output ~0.9\n(label smoothing: 0.9 not 1.0)"]
-        D2["D(fake_images) → should output 0.0"]
-        D3["loss_D = (BCE(D(real), 0.9) + BCE(D(fake), 0)  / 2"]
-        D4["Backprop → update D weights"]
-        D1 --> D2 --> D3 --> D4
-    end
-
-    DTRAIN --> NOISE2
-
-    NOISE2["Sample NEW random noise z2\nz2 = torch.randn(128, 100)"] --> GTRAIN
-
-    subgraph GTRAIN ["🔴 Step 2 — Train Generator G"]
-        G1["G(z2) → fake images"]
-        G2["D(fake images) → get D's verdict"]
-        G3["loss_G = BCE(D(fake), 1.0)\n(pretend they are real to fool D)"]
-        G4["Backprop → update G weights"]
-        G1 --> G2 --> G3 --> G4
-    end
-
-    GTRAIN --> LOG
-
-    LOG["Log avg losses\nD loss + G loss for this epoch"] --> CHECK
-
-    CHECK{Epoch % 10 == 0?} -->|Yes| SAMPLE["Save 8×8 grid of\nfixed fake images"]
-    CHECK -->|No| CHECK2
-    SAMPLE --> CHECK2
-
-    CHECK2{Epoch % 25 == 0?} -->|Yes| CKPT["Save checkpoint .pth\n(G weights + D weights + optimizer state)"]
-    CHECK2 -->|No| NEXT
-    CKPT --> NEXT
-
-    NEXT{More epochs?} -->|Yes| LOAD
-    NEXT -->|No| DONE(["Training Complete ✅"])
-```
+### PHASE 3 — OUTPUT & EVALUATION
+1. **Save Sample Grid**: Every 10 epochs, a grid of 64 generated images is saved so you can literally watch the model improve over time.
+2. **Save Checkpoint .pth**: Every 25 epochs, the exact neural network weights are saved to the hard drive so training can be resumed or analyzed later.
+3. **Generate Final Images**: Once all Epochs are finished, the script `generate_samples.py` uses the final, fully-trained Generator to quickly spit out 10,000 new images.
+4. **Compute FID Score**: The `compute_fid.py` script compares the 10,000 generated images against 10,000 real images using an Inception-v3 network to spit out a final mathematical score representing the quality of the model. Lower is better.
 
 ---
 

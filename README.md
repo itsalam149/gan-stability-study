@@ -2,7 +2,6 @@
 
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
 [![PyTorch 2.0](https://img.shields.io/badge/pytorch-2.0-ee4c2c.svg)](https://pytorch.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A comprehensive deep learning study on **Generative Adversarial Networks (GANs)**, tracing the evolution from baseline Multi-Layer Perceptrons to high-fidelity Deep Convolutional and Conditional architectures.
 
@@ -59,6 +58,7 @@ This project investigates the stability and generative capacity of various GAN a
 
 ## 🧮 Mathematical Background
 The models optimize the Minimax Binary Cross-Entropy loss:
+
 $$\min_G \max_D V(D, G) = \mathbb{E}_{x\sim p_{data}(x)}[\log D(x)] + \mathbb{E}_{z\sim p_z(z)}[\log(1 - D(G(z)))]$$
 
 We utilize **Label Smoothing** ($target=0.9$ for real images) to keep the Discriminator from becoming too confident, ensuring a steady learning signal for the Generator.
@@ -163,5 +163,4 @@ python visualize.py --compare
 ## 📜 Acknowledgments
 Developed for the **CS318 Deep Learning** course. We express our gratitude to our instructors for their academic support and for providing the framework to explore generative AI.
 
----
-© 2026 Faqre Alam & Ekansh Agrawal. Distributed under the MIT License.
+

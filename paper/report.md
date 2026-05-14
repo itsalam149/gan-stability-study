@@ -192,4 +192,4 @@ Future work could explore:
 
 ---
 
-*Submitted as part of CS318 – Deep Learning Course Project, April 2026.*
+*Submitted as a part of CS318 – Deep Learning Course Project, April 2026.*

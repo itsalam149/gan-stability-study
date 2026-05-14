@@ -1,152 +1,167 @@
-# CS318 – GAN-Based Image Generation
+# 🎨 GAN Stability Study: From MLP to Conditional DCGAN
 
-**Authors:** Faqre Alam (23/CS/150) · Ekansh Agrawal (23/CS/149)  
-**Course:** CS318 · Deep Learning  
-**Dataset:** MNIST  
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
+[![PyTorch 2.0](https://img.shields.io/badge/pytorch-2.0-ee4c2c.svg)](https://pytorch.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
----
-
-## Project Overview
-
-End-to-end pipeline implementing **Vanilla GAN** (fully-connected) and **DCGAN** (convolutional) on MNIST. The pipeline covers:
-
-- Training with label smoothing, tqdm logging, and periodic checkpointing
-- Image grid sampling every 10 epochs
-- Loss curve visualisation (G vs D)
-- Training progression figure (epoch 1 → 10 → 50 → 100)
-- Fréchet Inception Distance (FID) computation
+A comprehensive deep learning study on **Generative Adversarial Networks (GANs)**, tracing the evolution from baseline Multi-Layer Perceptrons to high-fidelity Deep Convolutional and Conditional architectures.
 
 ---
 
-## Repository Structure
+## 👥 Authors
+*   **Faqre Alam** (23/CS/150) · [faqrealam_23cs150@dtu.ac.in](mailto:faqrealam_23cs150@dtu.ac.in)
+*   **Ekansh Agrawal** (23/CS/149) · [ekanshagrawal_23cs149@dtu.ac.in](mailto:ekanshagrawal_23cs149@dtu.ac.in)
 
-```
-dl-project/
-├── gan_mnist.py          ← main training script
-├── generate_samples.py   ← generate N fake images from checkpoint
-├── compute_fid.py        ← FID computation pipeline
-├── visualize.py          ← plots & comparison figures
-├── requirements.txt
-├── configs/
-│   ├── vanilla.yaml
-│   └── dcgan.yaml
-├── results/              ← auto-created by training
-│   ├── vanilla/
-│   │   ├── samples/      ← epoch_0001.png … epoch_0100.png
-│   │   ├── checkpoints/  ← periodic .pth files
-│   │   ├── losses.png
-│   │   ├── progression.png
-│   │   └── fid_score.txt
-│   └── dcgan/            ← same structure
-└── paper/
-    └── report.md
-```
+**Institution:** Delhi Technological University (DTU)  
+**Course:** CS318 – Deep Learning  
+**Project Link:** [https://github.com/itsalam149/gan-stability-study](https://github.com/itsalam149/gan-stability-study)
 
 ---
 
-## Setup
+## 📖 Table of Contents
+1.  [Project Overview](#-project-overview)
+2.  [Architectures](#-architectures)
+3.  [Mathematical Background](#-mathematical-background)
+4.  [Research Results](#-research-results)
+5.  [Ablation Study](#-ablation-study)
+6.  [Installation & Setup](#-installation--setup)
+7.  [Usage Guide](#-usage-guide)
+8.  [File Structure](#-file-structure)
 
+---
+
+## 🌟 Project Overview
+This project investigates the stability and generative capacity of various GAN architectures. We address the primary challenges of GAN training—such as **Mode Collapse** and **Vanishing Gradients**—by implementing architectural best practices like strided convolutions, batch normalization, and label smoothing.
+
+### Datasets Used:
+*   **MNIST**: 70k grayscale handwritten digits (28x28).
+*   **Fashion-MNIST**: 70k grayscale clothing items (28x28), used for conditional testing.
+
+---
+
+## 🏗️ Architectures
+
+### 1. Vanilla GAN (MLP)
+- **Generator**: 4-layer fully-connected network (Latent → 256 → 512 → 1024 → 784).
+- **Discriminator**: 3-layer MLP with Dropout.
+- **Limitation**: Lacks spatial awareness; produces blurry outputs.
+
+### 2. DCGAN (Deep Convolutional)
+- **Generator**: Transposed Convolutions to upsample latent vectors to 28x28 grids.
+- **Discriminator**: Strided Convolutions for feature extraction.
+- **Key Upgrade**: Uses BatchNorm and LeakyReLU for gradient flow stability.
+
+### 3. cDCGAN (Conditional)
+- **Conditioning**: Class labels are injected via `nn.Embedding`.
+- **Capability**: Allows targeted generation (e.g., "Generate a Bag" or "Generate a Sneaker").
+
+---
+
+## 🧮 Mathematical Background
+The models optimize the Minimax Binary Cross-Entropy loss:
+$$\min_G \max_D V(D, G) = \mathbb{E}_{x\sim p_{data}(x)}[\log D(x)] + \mathbb{E}_{z\sim p_z(z)}[\log(1 - D(G(z)))]$$
+
+We utilize **Label Smoothing** ($target=0.9$ for real images) to keep the Discriminator from becoming too confident, ensuring a steady learning signal for the Generator.
+
+---
+
+## 📊 Research Results
+
+### Training Dynamics (DCGAN)
+The dashboard below illustrates the stable adversarial equilibrium reached by our DCGAN implementation. Note how the Discriminator loss (blue) stays within the "healthy" band of 0.3–0.7.
+
+![Summary Dashboard](paper/figures/fig8_summary_dashboard.png)
+
+### Visual Progression
+Watching the Generator learn: from random Gaussian noise (Epoch 1) to sharp, high-contrast digits (Epoch 100).
+
+![Training Progression](paper/figures/fig9_progression.png)
+
+### Quantitative Metrics (FID Score)
+Fréchet Inception Distance (FID) measures the distance between real and fake image distributions. **Lower is better.**
+
+| Model | Dataset | FID Score (↓) | Visual Quality |
+| :--- | :--- | :--- | :--- |
+| **Vanilla GAN** | MNIST | 40.59 | Blurry, some artifacts |
+| **DCGAN** | MNIST | **17.43** | Sharp, indistinguishable |
+| **cDCGAN** | Fashion-MNIST | 144.97* | Class-consistent |
+
+---
+
+## 🧪 Ablation Study
+We conducted an investigation into the size of the **Latent Dimension (z)**. Our findings suggest that while $z=50$ lacks the "genetic variety" to produce diverse samples, $z=200$ adds unnecessary computational overhead without significantly improving the FID score. $z=100$ remains the mathematical "sweet spot."
+
+![Latent Ablation](paper/figures/fig6_latent_ablation.png)
+
+---
+
+## 🛠️ Installation & Setup
+
+1.  **Clone the Repo**:
+    ```bash
+    git clone https://github.com/itsalam149/gan-stability-study.git
+    cd gan-stability-study
+    ```
+
+2.  **Environment Setup**:
+    ```bash
+    python3 -m venv venv
+    source venv/bin/activate
+    pip install -r requirements.txt
+    ```
+
+3.  **Check for GPU/MPS Support**:
+    The scripts automatically detect NVIDIA CUDA or Apple Metal (MPS).
+
+---
+
+## 💻 Usage Guide
+
+### 1. Training a Model
+Use the YAML configs for reproducible results:
 ```bash
-# 1. Create & activate a virtual environment (recommended)
-python -m venv venv
-source venv/bin/activate        # Mac/Linux
-# venv\Scripts\activate         # Windows
-
-# 2. Install dependencies
-pip install -r requirements.txt
-```
-
----
-
-## Quick Smoke-Test (5 epochs)
-
-Verify everything works before the full run:
-
-```bash
-python gan_mnist.py --model vanilla --epochs 5
-python gan_mnist.py --model dcgan   --epochs 5
-```
-
-Outputs created in `results/vanilla/` and `results/dcgan/`.
-
----
-
-## Full Training (100 epochs)
-
-### Option A — CLI flags
-```bash
-python gan_mnist.py --model vanilla --epochs 100
-python gan_mnist.py --model dcgan   --epochs 100
-```
-
-### Option B — YAML config (recommended for reproducibility)
-```bash
-python gan_mnist.py --config configs/vanilla.yaml
+# Train DCGAN (MNIST)
 python gan_mnist.py --config configs/dcgan.yaml
+
+# Train cDCGAN (Fashion-MNIST)
+python gan_mnist.py --model cdcgan --dataset fashion_mnist --epochs 100
 ```
 
-Training output example:
-```
-Epoch [   1/100]  D loss: 0.6821  G loss: 0.7432  (12.3s)
-  → Sample grid saved → results/dcgan/samples/epoch_0001.png
-Epoch [  10/100]  D loss: 0.4912  G loss: 1.1234  (11.8s)
-  → Sample grid saved → results/dcgan/samples/epoch_0010.png
-  → Checkpoint saved   → results/dcgan/checkpoints/epoch_0025.pth
-...
-```
-
----
-
-## FID Score
-
-FID (Fréchet Inception Distance) — lower is better.
-
+### 2. Evaluating Quality (FID)
 ```bash
-# Step 1: Generate 10k fake images
+# Generate 10k samples
 python generate_samples.py --model dcgan --n 10000
 
-# Step 2 & 3: Export real images + compute FID (automated)
+# Compute FID
 python compute_fid.py --model dcgan
 ```
 
-Score written to `results/dcgan/fid_score.txt`.
-
----
-
-## Visualisation
-
+### 3. Generate Comparative Plots
 ```bash
-# Individual model: loss curve + progression panels
-python visualize.py --model dcgan
-python visualize.py --model vanilla
-
-# Side-by-side Vanilla vs DCGAN comparison (needs both trained)
 python visualize.py --compare
 ```
 
 ---
 
-## Expected Results
-
-| Model | FID (↓) | Visual Quality |
-|-------|---------|----------------|
-| Vanilla GAN | ~60–80 | Blurry digits, some mode collapse |
-| DCGAN | ~15–35 | Sharp, well-formed digits |
-
-> FID values are approximate. Actual values depend on hardware and random seed.
+## 📂 File Structure
+```text
+.
+├── configs/            # YAML configuration files for each model
+├── docs/               # Technical guides, presentation scripts, and defense prep
+├── paper/              # Research Paper (LaTeX) and Figures
+│   ├── figures/        # Publication-quality plots (PNG)
+│   └── ieee_report.tex # Source code for the IEEE report
+├── results/            # Weights (.pth), raw losses (.npy), and sample grids
+├── gan_mnist.py        # Main training script (Universal architecture support)
+├── compute_fid.py      # FID evaluation pipeline
+├── visualize.py        # Chart and comparison generation script
+└── requirements.txt    # Project dependencies
+```
 
 ---
 
-## Key Hyperparameters
+## 📜 Acknowledgments
+Developed for the **CS318 Deep Learning** course. We express our gratitude to our instructors for their academic support and for providing the framework to explore generative AI.
 
-| Parameter | Value |
-|-----------|-------|
-| Latent dim | 100 |
-| Batch size | 128 |
-| Learning rate | 0.0002 |
-| Optimiser | Adam (β₁=0.5, β₂=0.999) |
-| Label smoothing | 0.9 |
-| Epochs | 100 |
-| Sample interval | every 10 epochs |
-| Checkpoint interval | every 25 epochs |
-# gan-stability-study
+---
+© 2026 Faqre Alam & Ekansh Agrawal. Distributed under the MIT License.

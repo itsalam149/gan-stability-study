@@ -2,7 +2,7 @@
 
 **CS318 Course Project**  
 **Authors:** Faqre Alam (23/CS/150) · Ekansh Agrawal (23/CS/149)  
-**Institution:** [Your Institution]  
+**Institution:** Delhi Technological University  
 **Date:** April 2026
 
 ---
